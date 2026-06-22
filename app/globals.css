@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Ustoz AI brend temasi (mobil ilova bilan bir xil) */
+@theme {
+  --color-cobalt: #2a4bc4;
+  --color-cobalt-deep: #1b2f7a;
+  --color-cobalt-50: #eaedfb;
+  --color-saffron: #e29a2e;
+  --color-saffron-50: #fbf0db;
+  --color-teal: #2c8a6c;
+  --color-teal-50: #e0f0ea;
+  --color-clay: #c7563a;
+  --color-clay-50: #f8e6e0;
+  --color-ink: #16203b;
+  --color-muted: #6a7390;
+  --color-bg: #f7f6f2;
+  --color-surface: #ffffff;
+  --color-border: rgba(22, 32, 59, 0.1);
+
+  --font-head: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, monospace;
+
+  --radius-xl2: 20px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-head {
+  font-family: var(--font-head);
+}
+.font-mono-x {
+  font-family: var(--font-mono);
+}
+
+/* Premium yumshoq soyalar */
+.shadow-soft {
+  box-shadow: 0 18px 50px rgba(22, 32, 59, 0.08);
+}
+.shadow-cobalt {
+  box-shadow: 0 16px 40px rgba(42, 75, 196, 0.28);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
