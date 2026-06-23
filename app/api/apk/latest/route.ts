@@ -14,9 +14,9 @@ export function GET() {
     ok: true,
     apk: {
       id: "bundled",
-      version: "1.2.0",
-      fileName: "ustoz-ai-1.2.0.apk",
-      note: "Universal APK — 32/64 bit. Railway backendga ulangan.",
+      version: "1.3.0",
+      fileName: "ustoz-ai-1.3.0.apk",
+      note: "Umumiy online akkaunt: bir marta ro'yxatdan o't, ham saytda ham ilovada kir. 32/64 bit.",
       size,
       uploadedAt: "2026-06-22T00:00:00.000Z",
       downloadUrl: "/downloads/ustoz-ai.apk",
