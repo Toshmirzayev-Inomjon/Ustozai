@@ -3,7 +3,7 @@ import { Reveal } from "@/components/Reveal";
 import PhonePreview from "@/components/marketing/PhonePreview";
 import VoiceOrb from "@/components/chat/VoiceOrb";
 
-const APK_URL = "https://uztozai.up.railway.app/api/apk/download";
+const APK_URL = "/downloads/ustoz-ai.apk";
 
 const FEATURES = [
   { icon: "🎓", title: "AI ustoz (Sokrat usuli)", text: "Javobni shunchaki bermaydi — savol bilan yo‘naltiradi, o‘zing topasan." },
