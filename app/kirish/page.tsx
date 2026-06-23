@@ -35,7 +35,8 @@ export default function LoginPage() {
         const data = await res.json().catch(() => ({}));
         setBusy(false);
         if (!data.ok) return setErr(data.error || "Foydalanuvchi nomi yoki parol noto‘g‘ri.");
-        sessionStorage.setItem("ustozAdmin", data.token || "1");
+        // Admin so'rovlari uchun parolni saqlaymiz (x-admin-key sarlavhasi).
+        sessionStorage.setItem("ustozAdminKey", parol);
         router.push("/admin");
       } catch {
         setBusy(false);
@@ -44,7 +45,7 @@ export default function LoginPage() {
       return;
     }
 
-    const res = login(username.trim(), parol);
+    const res = await login(username.trim(), parol);
     setBusy(false);
     if (!res.ok) return setErr(res.error);
     router.push("/bosh");

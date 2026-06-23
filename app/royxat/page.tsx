@@ -55,7 +55,7 @@ export default function RegisterPage() {
         const gen = await generateSubjects(chosenKasb);
         subjects = gen.ok ? gen.subjects : ["Matematika", "Ona tili", "Ingliz tili", "Tarix"];
       }
-      const res = registerStudent(
+      const res = await registerStudent(
         {
           ism: ism.trim(), familiya: familiya.trim(), yosh: yosh.trim(),
           viloyat: loc.viloyat, manzil: loc.manzil.trim(), lat: loc.lat, lng: loc.lng,
@@ -67,7 +67,7 @@ export default function RegisterPage() {
       if (!res.ok) return setErr(res.error);
       router.push("/bosh");
     } else {
-      const res = registerParent(
+      const res = await registerParent(
         { ism: ism.trim(), familiya: familiya.trim(), tel: tel.trim(), email: email.trim(), childUsername: childUsername.trim() },
         username.trim(), parol,
       );

@@ -8,7 +8,6 @@ export type SubjectStat = { answered: number; correct: number };
 export type User = {
   role: Role;
   username: string;
-  password: string; // MVP: mahalliy. Keyin backend + hash.
   ism: string;
   familiya: string;
   tel: string;

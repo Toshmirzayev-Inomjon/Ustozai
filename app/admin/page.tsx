@@ -4,40 +4,51 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import StarLogo from "@/components/StarLogo";
-import { loadAccounts } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
 export default function AdminPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      // TODO(backend): sessiyani serverdan tekshirish (cookie/JWT). Hozircha sessionStorage.
-      const token = sessionStorage.getItem("ustozAdmin");
-      if (!token) {
+      const key = sessionStorage.getItem("ustozAdminKey");
+      if (!key) {
         router.replace("/kirish");
         return;
       }
       setAuthed(true);
-      setUsers(loadAccounts());
+      // Foydalanuvchilarni umumiy backend'dan olamiz.
+      fetch("/api/admin/users", { headers: { "x-admin-key": key } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok) setUsers(d.users);
+          else setErr(d.error || "Yuklab bo‘lmadi.");
+        })
+        .catch(() => setErr("Serverga ulanib bo‘lmadi."));
     });
     return () => {
       active = false;
     };
   }, [router]);
 
-  if (!authed) return <div className="flex min-h-dvh items-center justify-center"><StarLogo size={48} /></div>;
+  if (!authed)
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <StarLogo size={48} />
+      </div>
+    );
 
   const students = users.filter((u) => u.role === "student");
   const parents = users.filter((u) => u.role === "parent");
   const totalAnswered = users.reduce((a, u) => a + (u.totalAnswered || 0), 0);
 
   const logout = () => {
-    sessionStorage.removeItem("ustozAdmin");
+    sessionStorage.removeItem("ustozAdminKey");
     router.push("/kirish");
   };
 
@@ -48,16 +59,15 @@ export default function AdminPage() {
           <StarLogo size={30} />
           <span className="font-head text-lg font-bold">Ustoz AI · Admin</span>
         </Link>
-        <button onClick={logout} className="text-sm font-bold text-clay">Chiqish</button>
+        <button onClick={logout} className="text-sm font-bold text-clay">
+          Chiqish
+        </button>
       </header>
 
       <div className="mx-auto max-w-5xl px-5 py-8">
-        {/* TODO(backend): bu ma'lumotlar hozir shu brauzer localStorage'idan. FastAPI + DB bilan markazlashtiriladi. */}
-        <p className="rounded-xl bg-saffron-50 px-4 py-2.5 text-sm text-saffron">
-          Eslatma: hozir foydalanuvchilar shu brauzerda saqlanadi (MVP). Backend ulangach markazlashadi.
-        </p>
+        {err && <p className="rounded-xl bg-clay-50 px-4 py-2.5 text-sm text-clay">{err}</p>}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { v: users.length, l: "Foydalanuvchi" },
             { v: students.length, l: "O‘quvchi" },
@@ -86,11 +96,19 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {users.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-muted">Hozircha foydalanuvchi yo‘q.</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-muted">
+                    Hozircha foydalanuvchi yo‘q.
+                  </td>
+                </tr>
               )}
               {users.map((u) => (
                 <tr key={u.username} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-semibold">{u.ism} {u.familiya}<br /><span className="text-xs text-muted">@{u.username}</span></td>
+                  <td className="px-4 py-3 font-semibold">
+                    {u.ism} {u.familiya}
+                    <br />
+                    <span className="text-xs text-muted">@{u.username}</span>
+                  </td>
                   <td className="px-4 py-3">{u.role === "student" ? "O‘quvchi" : "Ota-ona"}</td>
                   <td className="px-4 py-3">{u.kasb || "—"}</td>
                   <td className="px-4 py-3">{u.tel}</td>

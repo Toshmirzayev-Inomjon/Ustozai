@@ -1,15 +1,8 @@
 "use client";
 
-// Ustoz AI web — autentifikatsiya konteksti (localStorage MVP).
-// TODO(backend): FastAPI auth (JWT/cookie), parol hash, ko'p qurilma.
+// Ustoz AI web — autentifikatsiya (umumiy online backend: /api/auth/*).
+// Sayt va mobil ilova bitta akkauntdan foydalanadi. Sessiya localStorage'da (username+token).
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  clearSession,
-  loadAccounts,
-  loadSession,
-  saveAccounts,
-  saveSession,
-} from "./storage";
 import { todayKey, type ParentDraft, type StudentDraft, type User } from "./types";
 
 type AuthResult = { ok: true } | { ok: false; error: string };
@@ -17,135 +10,118 @@ type AuthResult = { ok: true } | { ok: false; error: string };
 type AuthValue = {
   user: User | null;
   loading: boolean;
-  registerStudent: (d: StudentDraft, username: string, password: string) => AuthResult;
-  registerParent: (d: ParentDraft, username: string, password: string) => AuthResult;
-  login: (username: string, password: string) => AuthResult;
+  registerStudent: (d: StudentDraft, username: string, password: string) => Promise<AuthResult>;
+  registerParent: (d: ParentDraft, username: string, password: string) => Promise<AuthResult>;
+  login: (username: string, password: string) => Promise<AuthResult>;
   logout: () => void;
-  updateUser: (patch: Partial<User>) => void;
-  changeProfession: (kasb: string, subjects: string[]) => void;
-  recordAnswer: (subject: string, correct: boolean) => void;
+  updateUser: (patch: Partial<User>) => Promise<void>;
+  changeProfession: (kasb: string, subjects: string[]) => Promise<void>;
+  recordAnswer: (subject: string, correct: boolean) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
-const norm = (s: string) => s.trim().toLowerCase();
+const SESSION_KEY = "ustoz:session";
 
-function bumpStreak(u: User): User {
-  const today = todayKey();
-  if (u.lastActiveDay === today) return u;
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const streak = u.lastActiveDay === yesterday ? u.streak + 1 : 1;
-  return { ...u, streak: Math.max(1, streak), lastActiveDay: today };
+type Session = { username: string; token: string };
+
+function readSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function api<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json().catch(() => ({ ok: false, error: "Server javob bermadi." })) as Promise<T>;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [accounts, setAccounts] = useState<User[]>([]);
-  const [username, setUsername] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Mount'da sessiyani tiklaymiz.
   useEffect(() => {
-    let active = true;
-    queueMicrotask(() => {
-      if (!active) return;
-      setAccounts(loadAccounts());
-      setUsername(loadSession());
+    const s = readSession();
+    if (!s) {
       setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
+      return;
+    }
+    (async () => {
+      const data = await api<{ ok: boolean; user?: User }>("/api/auth/me", s);
+      if (data.ok && data.user) {
+        setUser(data.user);
+        setToken(s.token);
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+      setLoading(false);
+    })();
   }, []);
 
-  const persist = useCallback((next: User[]) => {
-    setAccounts(next);
-    saveAccounts(next);
+  const persistSession = useCallback((username: string, tok: string, u: User) => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ username, token: tok }));
+    setToken(tok);
+    setUser(u);
   }, []);
 
-  const user = useMemo(
-    () => accounts.find((a) => norm(a.username) === norm(username ?? "")) ?? null,
-    [accounts, username],
-  );
-
-  // Streakni sessiya tiklanganda yangilaymiz.
-  useEffect(() => {
-    if (!user) return;
-    queueMicrotask(() => {
-      const bumped = bumpStreak(user);
-      if (bumped !== user) persist(accounts.map((a) => (a.username === user.username ? bumped : a)));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username]);
-
-  const baseNew = (username: string, password: string) => ({
-    username,
-    password,
-    premium: false,
-    createdAt: new Date().toISOString(),
-    streak: 1,
-    lastActiveDay: todayKey(),
-    totalAnswered: 0,
-    totalCorrect: 0,
-    subjectStats: {},
-  });
-
-  const checkCreds = useCallback(
-    (u: string, password: string): AuthResult => {
-      if (u.trim().length < 3) return { ok: false, error: "Foydalanuvchi nomi kamida 3 ta belgi." };
-      if (password.length < 4) return { ok: false, error: "Parol kamida 4 ta belgi." };
-      if (accounts.some((a) => norm(a.username) === norm(u))) return { ok: false, error: "Bu foydalanuvchi nomi band." };
+  const register = useCallback(
+    async (role: "student" | "parent", draft: object, username: string, password: string): Promise<AuthResult> => {
+      const data = await api<{ ok: boolean; error?: string; user?: User; token?: string }>(
+        "/api/auth/register",
+        { role, username, password, ...draft },
+      );
+      if (!data.ok || !data.user || !data.token) return { ok: false, error: data.error || "Xatolik." };
+      persistSession(username, data.token, data.user);
       return { ok: true };
     },
-    [accounts],
+    [persistSession],
   );
 
   const registerStudent = useCallback<AuthValue["registerStudent"]>(
-    (d, uname, password) => {
-      const check = checkCreds(uname, password);
-      if (!check.ok) return check;
-      const newUser: User = { role: "student", ...baseNew(uname.trim(), password), ...d };
-      persist([...accounts, newUser]);
-      saveSession(uname.trim());
-      setUsername(uname.trim());
-      return { ok: true };
-    },
-    [accounts, checkCreds, persist],
+    (d, u, p) => register("student", d, u, p),
+    [register],
   );
-
   const registerParent = useCallback<AuthValue["registerParent"]>(
-    (d, uname, password) => {
-      const check = checkCreds(uname, password);
-      if (!check.ok) return check;
-      const newUser: User = { role: "parent", ...baseNew(uname.trim(), password), ...d };
-      persist([...accounts, newUser]);
-      saveSession(uname.trim());
-      setUsername(uname.trim());
-      return { ok: true };
-    },
-    [accounts, checkCreds, persist],
+    (d, u, p) => register("parent", d, u, p),
+    [register],
   );
 
-  const login = useCallback<AuthValue["login"]>(
-    (uname, password) => {
-      const found = accounts.find((a) => norm(a.username) === norm(uname));
-      if (!found) return { ok: false, error: "Bunday foydalanuvchi topilmadi." };
-      if (found.password !== password) return { ok: false, error: "Parol noto‘g‘ri." };
-      saveSession(found.username);
-      setUsername(found.username);
-      return { ok: true };
-    },
-    [accounts],
-  );
+  const login = useCallback<AuthValue["login"]>(async (username, password) => {
+    const data = await api<{ ok: boolean; error?: string; user?: User; token?: string }>(
+      "/api/auth/login",
+      { username, password },
+    );
+    if (!data.ok || !data.user || !data.token) return { ok: false, error: data.error || "Xatolik." };
+    persistSession(username, data.token, data.user);
+    return { ok: true };
+  }, [persistSession]);
 
   const logout = useCallback(() => {
-    clearSession();
-    setUsername(null);
+    localStorage.removeItem(SESSION_KEY);
+    setUser(null);
+    setToken(null);
   }, []);
 
   const updateUser = useCallback<AuthValue["updateUser"]>(
-    (patch) => {
-      if (!user) return;
-      persist(accounts.map((a) => (a.username === user.username ? { ...a, ...patch } : a)));
+    async (patch) => {
+      if (!user || !token) return;
+      setUser({ ...user, ...patch }); // optimistik
+      const data = await api<{ ok: boolean; user?: User }>("/api/auth/update", {
+        username: user.username,
+        token,
+        patch,
+      });
+      if (data.ok && data.user) setUser(data.user);
     },
-    [accounts, persist, user],
+    [user, token],
   );
 
   const changeProfession = useCallback<AuthValue["changeProfession"]>(
@@ -154,10 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const recordAnswer = useCallback<AuthValue["recordAnswer"]>(
-    (subject, correct) => {
+    async (subject, correct) => {
       if (!user) return;
       const stat = user.subjectStats[subject] ?? { answered: 0, correct: 0 };
-      updateUser({
+      await updateUser({
+        lastActiveDay: todayKey(),
         totalAnswered: user.totalAnswered + 1,
         totalCorrect: user.totalCorrect + (correct ? 1 : 0),
         subjectStats: {
